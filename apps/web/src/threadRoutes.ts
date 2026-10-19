@@ -29,24 +29,11 @@ export function isThreadRouteSnapshotAuthoritative(
   return status === "live";
 }
 
-/**
- * Whether the thread's own load says a thread the shell does not list cannot
- * be opened: the server has no such thread, the load failed, or the thread is
- * archived (the active shell leaves archived threads out).
- */
-export function isUnlistedThreadUnavailable(detail: EnvironmentThreadState): boolean {
-  return (
-    detail.status === "deleted" ||
-    Option.isSome(detail.error) ||
-    Option.exists(detail.data, (projection) => projection.thread.archivedAt !== null)
-  );
-}
-
 export function resolveThreadRouteRenderState(input: {
   bootstrapComplete: boolean;
   serverThreadExists: boolean;
   serverThreadDeleted: boolean;
-  serverThreadUnavailable: boolean;
+  unlistedThreadDetail: EnvironmentThreadState;
   draftThreadExists: boolean;
 }): ThreadRouteRenderState {
   if (input.draftThreadExists || (input.serverThreadExists && !input.serverThreadDeleted)) {
@@ -55,12 +42,17 @@ export function resolveThreadRouteRenderState(input: {
   if (!input.bootstrapComplete) {
     return "loading";
   }
-  // A thread another client created a moment ago can reach this route before
-  // the live shell lists it, so the shell alone cannot tell it from a missing one.
-  if (!input.serverThreadExists && !input.serverThreadUnavailable) {
+  if (input.serverThreadExists || input.unlistedThreadDetail.status === "deleted") {
+    return "missing";
+  }
+  // Shell membership can lag a new thread or omit it entirely; its detail decides.
+  const projection = Option.getOrNull(input.unlistedThreadDetail.data);
+  if (projection === null) {
     return "loading";
   }
-  return "missing";
+  return projection.thread.deletedAt !== null || projection.thread.archivedAt !== null
+    ? "missing"
+    : "ready";
 }
 
 export function buildThreadRouteParams(ref: ScopedThreadRef): {

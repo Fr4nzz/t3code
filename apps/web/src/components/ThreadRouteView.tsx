@@ -20,7 +20,6 @@ import { useEnvironmentThread } from "../state/threads";
 import {
   buildThreadRouteParams,
   isThreadRouteSnapshotAuthoritative,
-  isUnlistedThreadUnavailable,
   resolveThreadRouteRenderState,
   type ThreadRouteTarget,
 } from "../threadRoutes";
@@ -103,7 +102,7 @@ export function ThreadRouteView({ target }: { target: ThreadRouteTarget }) {
     bootstrapComplete,
     serverThreadExists: serverThreadShell !== null,
     serverThreadDeleted: serverThreadShell?.deletedAt != null,
-    serverThreadUnavailable: isUnlistedThreadUnavailable(unlistedThreadDetail),
+    unlistedThreadDetail,
     draftThreadExists: draftThread !== null,
   });
   const serverThreadStarted = threadHasStarted(serverThreadShell);
