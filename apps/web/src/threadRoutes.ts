@@ -45,7 +45,7 @@ export function resolveThreadRouteRenderState(input: {
   if (input.serverThreadExists || input.unlistedThreadDetail.status === "deleted") {
     return "missing";
   }
-  // Shell membership can lag a new thread or omit it entirely; its detail decides.
+  // Shell membership can lag a new thread; its detail decides.
   const projection = Option.getOrNull(input.unlistedThreadDetail.data);
   if (projection === null) {
     return "loading";

@@ -1784,7 +1784,6 @@ export default function ChatView(props: ChatViewProps) {
 
   const existingOpenTerminalThreadKeys = (() => {
     const existingThreadKeys = new Set<string>([...serverThreadKeys, ...draftThreadKeys]);
-    if (serverThread !== null) existingThreadKeys.add(routeThreadKey);
     return openTerminalThreadKeys.filter((nextThreadKey) => existingThreadKeys.has(nextThreadKey));
   })();
   const reconciledMountedTerminalThreadKeys = reconcileMountedTerminalThreadIds({
