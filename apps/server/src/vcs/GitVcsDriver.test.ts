@@ -223,6 +223,46 @@ it.effect("checkpoint capture skips untracked files over the size cap", () =>
   }).pipe(Effect.scoped, Effect.provide(layerGitContract)),
 );
 
+// Issue #3646: a 600 MB untracked file used to be streamed into a pack, killed at the Git
+// timeout, and left as a tmp_pack every turn. A sparse file keeps the test cheap.
+it.effect("checkpoint capture skips a 600 MB untracked file without leaving tmp packs", () =>
+  Effect.gen(function* () {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const driver = yield* GitVcsDriver.makeVcsDriverShape();
+    const cwd = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-checkpoint-600mb-" });
+    const { git, checkpointRef } = yield* makeCheckpointFixture(driver, cwd);
+    const large = path.join(cwd, "weights.bin");
+    yield* fileSystem.writeFileString(large, "");
+    yield* fileSystem.truncate(large, 600 * 1024 * 1024);
+
+    const startedAt = performance.now();
+    yield* driver.checkpoints.captureCheckpoint({ cwd, checkpointRef });
+    assert.isBelow(performance.now() - startedAt, 15_000);
+
+    assert.strictEqual(
+      (yield* git(["ls-tree", "-r", "--name-only", checkpointRef])).stdout,
+      "file.txt\n",
+    );
+    const objects = path.join(cwd, ".git", "objects");
+    const entries = yield* fileSystem.readDirectory(objects, { recursive: true });
+    assert.deepEqual(
+      entries.filter((entry) => path.basename(entry).startsWith("tmp_")),
+      [],
+    );
+    let objectBytes = 0;
+    for (const entry of entries) {
+      const info = yield* fileSystem.stat(path.join(objects, entry));
+      if (info.type === "File") objectBytes += Number(info.size);
+    }
+    assert.isBelow(objectBytes, 1024 * 1024);
+
+    yield* fileSystem.writeFileString(path.join(cwd, "file.txt"), "changed\n");
+    assert.isTrue(yield* driver.checkpoints.restoreCheckpoint({ cwd, checkpointRef }));
+    assert.strictEqual(Number((yield* fileSystem.stat(large)).size), 600 * 1024 * 1024);
+  }).pipe(Effect.scoped, Effect.provide(layerGitContract)),
+);
+
 // Marks every untracked listing incomplete, as Git output past the limit or with a non-UTF-8 path is.
 const markUntrackedListings = (
   liveProcess: VcsProcess.VcsProcess["Service"],
